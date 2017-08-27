@@ -1,0 +1,4 @@
+https://bake.minio.io:9000/
+https://bake.minio.io:9000/docker.html
+https://bake.minio.io:9000/features.html
+https://bake.minio.io:9000/downloads.html
