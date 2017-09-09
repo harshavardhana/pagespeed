@@ -19,6 +19,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,11 +30,19 @@ import (
 	pagespeedonline "google.golang.org/api/pagespeedonline/v2"
 )
 
+var verbose = flag.Bool("verbose", false, "Enable verbose mode to get pagespeed results.")
+
+type result struct {
+	pagespeedonline.ResultFormattedResultsRuleResults
+	Type string `json:"type"`
+}
+
 // ResultRow  - results row.
 type ResultRow struct {
-	Strategy string `json:"strategy"`
-	URL      string `json:"url"`
-	Score    string `json:"score"`
+	Strategy string   `json:"strategy"`
+	URL      string   `json:"url"`
+	Score    string   `json:"score"`
+	Results  []result `json:"results,omitempty"`
 }
 
 // AnalyzeParam - analyze param.
@@ -48,8 +57,53 @@ const (
 	strategyPC     = "desktop"
 )
 
-func main() {
+func analyze(param AnalyzeParam) ResultRow {
+	pso, err := pagespeedonline.New(&http.Client{
+		Timeout: time.Duration(60) * time.Second,
+	})
+	if err != nil {
+		panic(err)
+	}
 
+	r, err := pso.Pagespeedapi.Runpagespeed(param.target).Strategy(param.strategy).Do()
+	if err != nil {
+		panic(err)
+	}
+
+	rw := ResultRow{
+		Strategy: param.strategy,
+		URL:      r.Id,
+		Score:    strconv.FormatInt(r.RuleGroups["SPEED"].Score, 10),
+	}
+	if *verbose {
+		var results []result
+		for k, v := range r.FormattedResults.RuleResults {
+			if v.RuleImpact > 0 {
+				results = append(results, result{
+					Type: k,
+					ResultFormattedResultsRuleResults: v,
+				})
+			}
+		}
+		rw.Results = results
+	}
+	return rw
+}
+
+func writeJSON(data ResultRow) {
+	file, err := os.OpenFile(resultFilePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	e := json.NewEncoder(file)
+	if err = e.Encode(&data); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func pageSpeedMain() {
 	fmt.Println("--- start ---")
 
 	file, err := os.Open(urlsFilePath)
@@ -72,37 +126,11 @@ func main() {
 	}
 
 	fmt.Println("--- end ---")
+	fmt.Println("Successfully ran pagespeed, please review your results in 'results.json'")
 }
 
-func analyze(param AnalyzeParam) ResultRow {
-	pso, err := pagespeedonline.New(&http.Client{
-		Timeout: time.Duration(60) * time.Second,
-	})
-	if err != nil {
-		panic(err)
-	}
+func main() {
+	flag.Parse()
 
-	r, err := pso.Pagespeedapi.Runpagespeed(param.target).Strategy(param.strategy).Do()
-	if err != nil {
-		panic(err)
-	}
-
-	return ResultRow{
-		Strategy: param.strategy,
-		URL:      r.Id,
-		Score:    strconv.FormatInt(r.RuleGroups["SPEED"].Score, 10),
-	}
-}
-
-func writeJSON(data ResultRow) {
-	file, err := os.OpenFile(resultFilePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	e := json.NewEncoder(file)
-	if err = e.Encode(&data); err != nil {
-		log.Fatal(err)
-	}
+	pageSpeedMain()
 }
