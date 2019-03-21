@@ -1,4 +1,4 @@
-https://bake.minio.io:9000/
-https://bake.minio.io:9000/docker.html
-https://bake.minio.io:9000/features.html
-https://bake.minio.io:9000/downloads.html
+https://bake.minio.io:8080/
+https://bake.minio.io:8080/partner
+https://bake.minio.io:8080/subcription
+https://bake.minio.io:8080/download
